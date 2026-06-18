@@ -15,13 +15,13 @@ from agents.discovery_agent import DiscoveryAgent
 from agents.logistics_agent import LogisticsAgent
 from agents.validation_agent import ValidationAgent
 from services.google_maps import GoogleMapsService
-from services.gemini import GeminiService
+from services.llm import LLMService
 import config
 
 
 def build_travel_graph(
     maps_service: GoogleMapsService,
-    gemini_service: GeminiService,
+    llm_service: LLMService,
 ) -> StateGraph:
     """Build the LangGraph workflow for travel planning.
 
@@ -35,14 +35,14 @@ def build_travel_graph(
 
     Args:
         maps_service: Google Maps service instance.
-        gemini_service: Gemini service instance.
+        llm_service: LLM service instance.
 
     Returns:
         Compiled StateGraph ready for invocation.
     """
     # Create agents
-    preference_agent = PreferenceAgent(gemini_service)
-    discovery_agent = DiscoveryAgent(maps_service, gemini_service)
+    preference_agent = PreferenceAgent(llm_service)
+    discovery_agent = DiscoveryAgent(maps_service, llm_service)
     logistics_agent = LogisticsAgent(maps_service)
     validation_agent = ValidationAgent(maps_service)
 

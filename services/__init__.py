@@ -1,6 +1,6 @@
 """External service integrations."""
 
 from services.google_maps import GoogleMapsService
-from services.gemini import GeminiService
+from services.llm import LLMService
 
-__all__ = ["GoogleMapsService", "GeminiService"]
+__all__ = ["GoogleMapsService", "LLMService"]

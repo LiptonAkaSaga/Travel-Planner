@@ -6,7 +6,7 @@ from agents.discovery_agent import DiscoveryAgent
 from agents.logistics_agent import LogisticsAgent
 from agents.validation_agent import ValidationAgent
 from services.google_maps import GoogleMapsService
-from services.gemini import GeminiService
+from services.llm import LLMService
 
 
 def create_preference_node(

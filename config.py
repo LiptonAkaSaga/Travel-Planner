@@ -7,10 +7,10 @@ load_dotenv()
 
 # API Keys
 GOOGLE_MAPS_API_KEY: str = os.getenv("GOOGLE_MAPS_API_KEY", "")
-GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
 
-# Gemini model
-GEMINI_MODEL: str = "gemini-3.5-flash"
+# LLM settings
+OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
+OPENAI_MODEL: str = "gpt-4o-mini"
 
 # Google Maps settings
 DEFAULT_SEARCH_RADIUS_METERS: int = 5000

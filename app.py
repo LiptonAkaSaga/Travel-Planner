@@ -8,7 +8,7 @@ from ui.quiz_page import render_quiz_page
 from ui.results_page import render_results_page
 from ui.itinerary_page import render_itinerary_page
 from agents.preference_agent import PreferenceAgent
-from services.gemini import GeminiService
+from services.llm import LLMService
 
 
 def main() -> None:
@@ -28,8 +28,8 @@ def main() -> None:
 
     # Initialize services (cached)
     try:
-        gemini_service = _get_gemini_service()
-        preference_agent = PreferenceAgent(gemini_service)
+        llm_service = _get_llm_service()
+        preference_agent = PreferenceAgent(llm_service)
     except ValueError as e:
         st.error(f"⚠️ Błąd konfiguracji: {str(e)}")
         st.info(
@@ -79,9 +79,9 @@ def main() -> None:
 
 
 @st.cache_resource
-def _get_gemini_service() -> GeminiService:
-    """Get cached Gemini service instance."""
-    return GeminiService()
+def _get_llm_service() -> LLMService:
+    """Get cached LLM service instance."""
+    return LLMService()
 
 
 if __name__ == "__main__":

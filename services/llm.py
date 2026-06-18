@@ -1,25 +1,25 @@
-"""Gemini LLM service for AI-powered travel planning."""
+"""LLM service using OpenAI API via LangChain."""
 
-from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_openai import ChatOpenAI
 from langchain_core.messages import SystemMessage, HumanMessage
 import config
 
 
-class GeminiService:
-    """Wrapper around Gemini API via LangChain."""
+class LLMService:
+    """Wrapper around OpenAI API via LangChain."""
 
     def __init__(self, api_key: str = "") -> None:
-        key = api_key or config.GEMINI_API_KEY
+        key = api_key or config.OPENAI_API_KEY
         if not key:
-            raise ValueError("GEMINI_API_KEY is required")
-        self._llm = ChatGoogleGenerativeAI(
-            model=config.GEMINI_MODEL,
-            google_api_key=key,
+            raise ValueError("OPENAI_API_KEY is required")
+        self._llm = ChatOpenAI(
+            model=config.OPENAI_MODEL,
+            openai_api_key=key,
             temperature=0.7,
         )
 
     def chat(self, system_prompt: str, user_message: str) -> str:
-        """Send a chat request to Gemini.
+        """Send a chat request to the LLM.
 
         Args:
             system_prompt: System instructions for the model.

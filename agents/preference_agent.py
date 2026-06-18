@@ -1,7 +1,7 @@
 """Preference Agent — travel style assessment and profile generation."""
 
 from models.profile import TravelProfile, TravelStyle, Pace, BudgetLevel
-from services.gemini import GeminiService
+from services.llm import LLMService
 
 QUIZ_QUESTIONS: list[dict] = [
     {
@@ -82,8 +82,8 @@ QUIZ_QUESTIONS: list[dict] = [
 class PreferenceAgent:
     """Agent responsible for travel style assessment and profile generation."""
 
-    def __init__(self, gemini_service: GeminiService) -> None:
-        self._gemini = gemini_service
+    def __init__(self, llm_service: LLMService) -> None:
+        self._llm = llm_service
 
     def get_quiz_questions(self) -> list[dict]:
         """Return the quiz questions for the user.
@@ -121,7 +121,7 @@ IMPORTANT: Return ONLY valid JSON, no markdown, no explanation."""
 
         user_message = f"Quiz answers:\n{_format_answers(answers)}"
 
-        result = self._gemini.chat(system_prompt, user_message)
+        result = self._llm.chat(system_prompt, user_message)
 
         # Parse the JSON response
         import json

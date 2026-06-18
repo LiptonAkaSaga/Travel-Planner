@@ -5,7 +5,7 @@ from models.profile import TravelProfile
 from models.itinerary import Itinerary
 from graph.builder import build_travel_graph, create_initial_state
 from services.google_maps import GoogleMapsService
-from services.gemini import GeminiService
+from services.llm import LLMService
 from ui.map_component import render_map
 
 
@@ -46,10 +46,10 @@ def render_itinerary_page() -> None:
             try:
                 # Initialize services
                 maps_service = GoogleMapsService()
-                gemini_service = GeminiService()
+                llm_service = LLMService()
 
                 # Build and run the graph
-                graph = build_travel_graph(maps_service, gemini_service)
+                graph = build_travel_graph(maps_service, llm_service)
                 initial_state = create_initial_state(
                     city=city,
                     num_days=num_days,

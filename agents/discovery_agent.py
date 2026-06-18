@@ -3,7 +3,7 @@
 from models.profile import TravelProfile
 from models.attraction import Attraction
 from services.google_maps import GoogleMapsService
-from services.gemini import GeminiService
+from services.llm import LLMService
 import config
 
 
@@ -13,10 +13,10 @@ class DiscoveryAgent:
     def __init__(
         self,
         maps_service: GoogleMapsService,
-        gemini_service: GeminiService,
+        llm_service: LLMService,
     ) -> None:
         self._maps = maps_service
-        self._gemini = gemini_service
+        self._llm = llm_service
 
     def discover(
         self,
@@ -88,7 +88,7 @@ class DiscoveryAgent:
                         break
             attraction = attraction.model_copy(update={"opening_hours": opening_hours})
 
-        # Generate description using Gemini
+        # Generate description using LLM
         if not attraction.description:
             description = self._generate_description(attraction)
             attraction = attraction.model_copy(update={"description": description})
@@ -138,7 +138,7 @@ class DiscoveryAgent:
         return sorted(attractions, key=score, reverse=True)
 
     def _generate_description(self, attraction: Attraction) -> str:
-        """Generate a brief description of the attraction using Gemini.
+        """Generate a brief description of the attraction using LLM.
 
         Args:
             attraction: Attraction to describe.
@@ -150,6 +150,6 @@ class DiscoveryAgent:
         message = f"Atrakcja: {attraction.name}\nAdres: {attraction.address}\nOcena: {attraction.rating}/5\nKategorie: {', '.join(attraction.categories)}"
 
         try:
-            return self._gemini.chat(prompt, message)
+            return self._llm.chat(prompt, message)
         except Exception:
             return f"{attraction.name} — popularna atrakcja turystyczna."
