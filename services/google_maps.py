@@ -1,9 +1,12 @@
 """Google Maps API service for places and directions."""
 
+import logging
 import googlemaps
 from models.attraction import Attraction
 from models.itinerary import RouteSegment
 import config
+
+logger = logging.getLogger(__name__)
 
 
 class GoogleMapsService:
@@ -38,7 +41,8 @@ class GoogleMapsService:
             query = f"{category} in {city}"
             try:
                 results = self._client.places(query=query)
-            except Exception:
+            except Exception as e:
+                logger.warning(f"Google Maps search failed for '{query}': {e}")
                 continue
 
             for place in results.get("results", []):

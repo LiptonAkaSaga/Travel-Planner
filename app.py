@@ -3,7 +3,10 @@
 Main Streamlit application entry point.
 """
 
+import logging
 import streamlit as st
+
+logging.basicConfig(level=logging.INFO, format="%(name)s: %(message)s")
 from ui.quiz_page import render_quiz_page
 from ui.results_page import render_results_page
 from ui.itinerary_page import render_itinerary_page

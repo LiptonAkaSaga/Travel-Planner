@@ -1,5 +1,6 @@
 """Node implementations for the LangGraph travel planning workflow."""
 
+import logging
 from graph.state import TravelState
 from agents.preference_agent import PreferenceAgent
 from agents.discovery_agent import DiscoveryAgent
@@ -7,6 +8,8 @@ from agents.logistics_agent import LogisticsAgent
 from agents.validation_agent import ValidationAgent
 from services.google_maps import GoogleMapsService
 from services.llm import LLMService
+
+logger = logging.getLogger(__name__)
 
 
 def create_preference_node(
@@ -22,8 +25,19 @@ def create_preference_node(
     """
     def preference_node(state: TravelState) -> dict:
         """Process quiz answers and generate travel profile."""
+        # Skip if profile already provided
+        if state.get("profile"):
+            logger.info("Profile already provided, skipping preference node")
+            return {"status": "running"}
+
         try:
-            profile = preference_agent.generate_profile(state["quiz_answers"])
+            quiz_answers = state.get("quiz_answers", {})
+            if not quiz_answers:
+                return {
+                    "errors": state.get("errors", []) + ["No quiz answers provided"],
+                    "status": "failed",
+                }
+            profile = preference_agent.generate_profile(quiz_answers)
             return {"profile": profile, "status": "running"}
         except Exception as e:
             return {
@@ -55,11 +69,26 @@ def create_discovery_node(
                     "status": "failed",
                 }
 
+            city = state["city"]
+            logger.info(f"Discovering attractions in {city} for {profile.style.value} traveler")
+            logger.info(f"Preferred categories: {profile.preferred_categories}")
+
             attractions = discovery_agent.discover(
-                city=state["city"],
+                city=city,
                 profile=profile,
                 num_days=state["num_days"],
             )
+
+            if not attractions:
+                logger.warning(f"No attractions found in {city}")
+                return {
+                    "errors": state.get("errors", []) + [
+                        f"No attractions found in {city}. Check GOOGLE_MAPS_API_KEY and ensure Places API is enabled."
+                    ],
+                    "status": "failed",
+                }
+
+            logger.info(f"Found {len(attractions)} attractions")
 
             # Enrich top attractions with descriptions
             enriched: list = []
@@ -68,6 +97,7 @@ def create_discovery_node(
 
             return {"attractions": enriched, "status": "running"}
         except Exception as e:
+            logger.error(f"Discovery Agent error: {e}")
             return {
                 "errors": state.get("errors", []) + [f"Discovery Agent error: {str(e)}"],
                 "status": "failed",
