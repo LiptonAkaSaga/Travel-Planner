@@ -10,6 +10,7 @@ GOOGLE_MAPS_API_KEY: str = os.getenv("GOOGLE_MAPS_API_KEY", "")
 
 # LLM settings
 OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
+OPENAI_BASE_URL: str = os.getenv("OPENAI_BASE_URL", "")
 OPENAI_MODEL: str = "gpt-4o-mini"
 
 # Google Maps settings

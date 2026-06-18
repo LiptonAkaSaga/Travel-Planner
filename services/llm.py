@@ -12,11 +12,16 @@ class LLMService:
         key = api_key or config.OPENAI_API_KEY
         if not key:
             raise ValueError("OPENAI_API_KEY is required")
-        self._llm = ChatOpenAI(
-            model=config.OPENAI_MODEL,
-            openai_api_key=key,
-            temperature=0.7,
-        )
+
+        kwargs: dict = {
+            "model": config.OPENAI_MODEL,
+            "openai_api_key": key,
+            "temperature": 0.7,
+        }
+        if config.OPENAI_BASE_URL:
+            kwargs["openai_api_base"] = config.OPENAI_BASE_URL
+
+        self._llm = ChatOpenAI(**kwargs)
 
     def chat(self, system_prompt: str, user_message: str) -> str:
         """Send a chat request to the LLM.
