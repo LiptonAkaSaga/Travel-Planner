@@ -1,0 +1,10 @@
+streamlit>=1.30.0
+langgraph>=0.2.0
+langchain-google-genai>=1.0.0
+langchain-core>=0.2.0
+googlemaps>=4.10.0
+folium>=0.15.0
+streamlit-folium>=0.18.0
+pydantic>=2.0.0
+python-dotenv>=1.0.0
+pytest>=8.0.0
