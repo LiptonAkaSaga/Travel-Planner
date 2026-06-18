@@ -1,6 +1,7 @@
-"""Google Maps API service for places and directions."""
+"""Google Maps API service — Places API (New) + Directions API."""
 
 import logging
+import requests
 import googlemaps
 from models.attraction import Attraction
 from models.itinerary import RouteSegment
@@ -8,15 +9,23 @@ import config
 
 logger = logging.getLogger(__name__)
 
+PLACES_BASE = "https://places.googleapis.com/v1"
+
 
 class GoogleMapsService:
-    """Wrapper around Google Maps Python client."""
+    """Wrapper around Google Maps APIs.
+
+    Uses Places API (New) for search/details and Directions API for routes.
+    """
 
     def __init__(self, api_key: str = "") -> None:
         key = api_key or config.GOOGLE_MAPS_API_KEY
         if not key:
             raise ValueError("GOOGLE_MAPS_API_KEY is required")
+        self._api_key = key
         self._client = googlemaps.Client(key=key)
+
+    # ── Places API (New) ─────────────────────────────────────────────
 
     def search_attractions(
         self,
@@ -24,7 +33,7 @@ class GoogleMapsService:
         categories: list[str],
         max_results: int = 20,
     ) -> list[Attraction]:
-        """Search for attractions in a city filtered by categories.
+        """Search for attractions using Places API (New) searchText.
 
         Args:
             city: Target city name.
@@ -40,28 +49,29 @@ class GoogleMapsService:
         for category in categories:
             query = f"{category} in {city}"
             try:
-                results = self._client.places(query=query)
+                results = self._text_search(query, max_results=max_results)
             except Exception as e:
-                logger.warning(f"Google Maps search failed for '{query}': {e}")
+                logger.warning(f"Places search failed for '{query}': {e}")
                 continue
 
-            for place in results.get("results", []):
+            for place in results:
                 if len(attractions) >= max_results:
                     break
 
-                place_id = place.get("place_id", "")
+                place_id = place.get("id", "")
                 if not place_id or place_id in seen_place_ids:
                     continue
                 seen_place_ids.add(place_id)
 
-                attraction = self._parse_place(place, category)
+                attraction = self._parse_place_new(place, category)
                 if attraction:
                     attractions.append(attraction)
 
+        logger.info(f"Found {len(attractions)} attractions total")
         return attractions
 
     def get_place_details(self, place_id: str) -> dict:
-        """Get detailed information for a place.
+        """Get detailed information using Places API (New).
 
         Args:
             place_id: Google Maps place ID.
@@ -69,11 +79,24 @@ class GoogleMapsService:
         Returns:
             Place details dictionary.
         """
+        url = f"{PLACES_BASE}/places/{place_id}"
+        headers = {
+            "X-Goog-Api-Key": self._api_key,
+            "X-Goog-FieldMask": (
+                "id,displayName,formattedAddress,rating,userRatingCount,"
+                "priceLevel,currentOpeningHours,regularOpeningHours,"
+                "location,types,editorialSummary"
+            ),
+        }
         try:
-            result = self._client.place(place_id=place_id)
-            return result.get("result", {})
-        except Exception:
+            resp = requests.get(url, headers=headers, timeout=10)
+            resp.raise_for_status()
+            return resp.json()
+        except Exception as e:
+            logger.warning(f"Place details failed for {place_id}: {e}")
             return {}
+
+    # ── Directions API (legacy — still works) ────────────────────────
 
     def get_route(
         self,
@@ -97,7 +120,8 @@ class GoogleMapsService:
                 destination=destination,
                 mode=mode,
             )
-        except Exception:
+        except Exception as e:
+            logger.warning(f"Directions API failed: {e}")
             return None
 
         if not directions:
@@ -121,15 +145,7 @@ class GoogleMapsService:
         waypoints: list[tuple[float, float]],
         mode: str = "walking",
     ) -> list[RouteSegment]:
-        """Get routes between consecutive waypoints.
-
-        Args:
-            waypoints: List of (lat, lng) tuples.
-            mode: Travel mode.
-
-        Returns:
-            List of RouteSegment objects.
-        """
+        """Get routes between consecutive waypoints."""
         segments: list[RouteSegment] = []
         for i in range(len(waypoints) - 1):
             segment = self.get_route(waypoints[i], waypoints[i + 1], mode)
@@ -137,43 +153,94 @@ class GoogleMapsService:
                 segments.append(segment)
         return segments
 
-    def _parse_place(self, place: dict, category: str) -> Attraction | None:
-        """Parse a Google Maps place result into an Attraction.
+    # ── Private helpers ──────────────────────────────────────────────
+
+    def _text_search(self, query: str, max_results: int = 20) -> list[dict]:
+        """Call Places API (New) searchText endpoint.
 
         Args:
-            place: Raw place result from Google Maps.
+            query: Search query string.
+            max_results: Max results to return.
+
+        Returns:
+            List of place dictionaries.
+        """
+        url = f"{PLACES_BASE}/places:searchText"
+        headers = {
+            "Content-Type": "application/json",
+            "X-Goog-Api-Key": self._api_key,
+            "X-Goog-FieldMask": (
+                "places.id,places.displayName,places.formattedAddress,"
+                "places.rating,places.userRatingCount,places.priceLevel,"
+                "places.location,places.types,places.currentOpeningHours,"
+                "places.regularOpeningHours"
+            ),
+        }
+        body = {
+            "textQuery": query,
+            "maxResultCount": min(max_results, 20),
+            "languageCode": "pl",
+        }
+
+        resp = requests.post(url, headers=headers, json=body, timeout=15)
+        resp.raise_for_status()
+        data = resp.json()
+        return data.get("places", [])
+
+    def _parse_place_new(self, place: dict, category: str) -> Attraction | None:
+        """Parse a Places API (New) result into an Attraction.
+
+        Args:
+            place: Raw place result from Places API (New).
             category: The search category used.
 
         Returns:
             Attraction or None if parsing fails.
         """
         try:
-            location = place.get("geometry", {}).get("location", {})
-            if not location:
+            location = place.get("location", {})
+            lat = location.get("latitude", 0.0)
+            lng = location.get("longitude", 0.0)
+            if not lat and not lng:
                 return None
 
-            price_level = place.get("price_level")
-            opening_hours_raw = place.get("opening_hours", {})
+            # Display name
+            display_name = place.get("displayName", {})
+            name = display_name.get("text", "Unknown") if isinstance(display_name, dict) else str(display_name)
+
+            # Opening hours
             opening_hours: dict[str, str] = {}
-            if opening_hours_raw and "weekday_text" in opening_hours_raw:
+            regular_hours = place.get("regularOpeningHours", {})
+            if regular_hours and "weekdayDescriptions" in regular_hours:
                 days = [
                     "Monday", "Tuesday", "Wednesday", "Thursday",
                     "Friday", "Saturday", "Sunday",
                 ]
-                for day_text in opening_hours_raw.get("weekday_text", []):
+                for desc in regular_hours["weekdayDescriptions"]:
                     for day in days:
-                        if day_text.startswith(day):
-                            opening_hours[day] = day_text.split(": ", 1)[-1]
+                        if desc.startswith(day):
+                            opening_hours[day] = desc.split(": ", 1)[-1]
                             break
 
+            # Price level mapping (new API uses string enum)
+            price_level_raw = place.get("priceLevel")
+            price_level_map = {
+                "PRICE_LEVEL_FREE": 0,
+                "PRICE_LEVEL_INEXPENSIVE": 1,
+                "PRICE_LEVEL_MODERATE": 2,
+                "PRICE_LEVEL_EXPENSIVE": 3,
+                "PRICE_LEVEL_VERY_EXPENSIVE": 4,
+            }
+            price_level = price_level_map.get(price_level_raw) if price_level_raw else None
+
             return Attraction(
-                place_id=place.get("place_id", ""),
-                name=place.get("name", "Unknown"),
-                address=place.get("formatted_address", place.get("vicinity", "")),
-                lat=location.get("lat", 0.0),
-                lng=location.get("lng", 0.0),
+                place_id=place.get("id", ""),
+                name=name,
+                address=place.get("formattedAddress", ""),
+                lat=lat,
+                lng=lng,
                 rating=place.get("rating", 0.0),
-                user_ratings_total=place.get("user_ratings_total", 0),
+                user_ratings_total=place.get("userRatingCount", 0),
                 categories=[category],
                 price_level=price_level,
                 opening_hours=opening_hours,
@@ -181,5 +248,6 @@ class GoogleMapsService:
                     category, config.DEFAULT_VISIT_DURATION
                 ),
             )
-        except (KeyError, TypeError):
+        except (KeyError, TypeError) as e:
+            logger.warning(f"Failed to parse place: {e}")
             return None
