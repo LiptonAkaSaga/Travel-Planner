@@ -11,7 +11,7 @@ GOOGLE_MAPS_API_KEY: str = os.getenv("GOOGLE_MAPS_API_KEY", "")
 # LLM settings
 OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
 OPENAI_BASE_URL: str = os.getenv("OPENAI_BASE_URL", "")
-OPENAI_MODEL: str = "gpt-4o-mini"
+OPENAI_MODEL: str = "mimo-v2.5-pro"
 
 # Google Maps settings
 DEFAULT_SEARCH_RADIUS_METERS: int = 5000
