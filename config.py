@@ -10,7 +10,7 @@ GOOGLE_MAPS_API_KEY: str = os.getenv("GOOGLE_MAPS_API_KEY", "")
 GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
 
 # Gemini model
-GEMINI_MODEL: str = "gemini-2.0-flash"
+GEMINI_MODEL: str = "gemini-3.5-flash"
 
 # Google Maps settings
 DEFAULT_SEARCH_RADIUS_METERS: int = 5000
