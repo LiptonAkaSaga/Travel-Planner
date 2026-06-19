@@ -27,12 +27,14 @@ class ValidationAgent:
         self,
         itinerary: Itinerary,
         profile: TravelProfile,
+        place_details_cache: dict[str, dict] | None = None,
     ) -> ValidationResult:
         """Validate an itinerary against guardrails and constraints.
 
         Args:
             itinerary: The itinerary to validate.
             profile: User's travel profile.
+            place_details_cache: Optional cache of place details from discovery.
 
         Returns:
             ValidationResult with approval status and any issues.
@@ -41,7 +43,7 @@ class ValidationAgent:
         warnings: list[str] = []
 
         # 1. Verify attractions exist in Google Maps
-        verification_errors = self._verify_attractions_exist(itinerary)
+        verification_errors = self._verify_attractions_exist(itinerary, place_details_cache)
         errors.extend(verification_errors)
 
         # 2. Validate schedule realism
@@ -67,16 +69,24 @@ class ValidationAgent:
             warnings=warnings,
         )
 
-    def _verify_attractions_exist(self, itinerary: Itinerary) -> list[str]:
+    def _verify_attractions_exist(
+        self,
+        itinerary: Itinerary,
+        place_details_cache: dict[str, dict] | None = None,
+    ) -> list[str]:
         """Verify every attraction exists in Google Maps by place_id.
+
+        Uses cached data when available to avoid redundant API calls.
 
         Args:
             itinerary: Itinerary to verify.
+            place_details_cache: Optional cache of place details.
 
         Returns:
             List of error messages for unverifiable attractions.
         """
         errors: list[str] = []
+        cache = place_details_cache or {}
 
         for day in itinerary.days:
             for attraction in day.attractions:
@@ -86,8 +96,12 @@ class ValidationAgent:
                     )
                     continue
 
-                # Verify the place exists
-                details = self._maps.get_place_details(attraction.place_id)
+                # Use cache if available, otherwise call API
+                if attraction.place_id in cache:
+                    details = cache[attraction.place_id]
+                else:
+                    details = self._maps.get_place_details(attraction.place_id)
+
                 if not details:
                     errors.append(
                         f"Atrakcja '{attraction.name}' (ID: {attraction.place_id}) "
@@ -145,6 +159,8 @@ class ValidationAgent:
     ) -> list[str]:
         """Validate budget alignment between itinerary and profile.
 
+        Supports both categorical (low/medium/high) and numeric (PLN) budgets.
+
         Args:
             itinerary: Itinerary to validate.
             profile: User's travel profile.
@@ -154,21 +170,48 @@ class ValidationAgent:
         """
         warnings: list[str] = []
 
-        budget_price_range = {
-            "low": (0, 1),
-            "medium": (0, 3),
-            "high": (0, 4),
-        }
-        min_price, max_price = budget_price_range.get(profile.budget.value, (0, 4))
+        # Price level cost estimates (PLN per visit)
+        price_level_cost = {0: 0, 1: 30, 2: 60, 3: 120, 4: 250}
 
-        for day in itinerary.days:
-            for attraction in day.attractions:
-                if attraction.price_level is not None:
-                    if attraction.price_level > max_price:
+        # Numeric budget validation
+        if profile.budget_amount and profile.budget_amount > 0:
+            total_estimated_cost = 0.0
+            for day in itinerary.days:
+                for attraction in day.attractions:
+                    if attraction.price_level is not None:
+                        total_estimated_cost += price_level_cost.get(attraction.price_level, 0)
+
+            if total_estimated_cost > profile.budget_amount:
+                warnings.append(
+                    f"Szacowany koszt atrakcji ({total_estimated_cost:.0f} PLN) "
+                    f"przekracza budżet ({profile.budget_amount:.0f} PLN)."
+                )
+
+            # Per-attraction warnings for expensive items
+            for day in itinerary.days:
+                for attraction in day.attractions:
+                    if attraction.price_level is not None and attraction.price_level >= 3:
+                        cost = price_level_cost.get(attraction.price_level, 0)
                         warnings.append(
-                            f"'{attraction.name}' ma poziom cen {attraction.price_level}/4, "
-                            f"co przekracza budżet '{profile.budget.value}'."
+                            f"'{attraction.name}' — szacowany koszt ~{cost} PLN (poziom cen {attraction.price_level}/4)."
                         )
+        else:
+            # Categorical budget validation (legacy)
+            budget_price_range = {
+                "low": (0, 1),
+                "medium": (0, 3),
+                "high": (0, 4),
+            }
+            min_price, max_price = budget_price_range.get(profile.budget.value, (0, 4))
+
+            for day in itinerary.days:
+                for attraction in day.attractions:
+                    if attraction.price_level is not None:
+                        if attraction.price_level > max_price:
+                            warnings.append(
+                                f"'{attraction.name}' ma poziom cen {attraction.price_level}/4, "
+                                f"co przekracza budżet '{profile.budget.value}'."
+                            )
 
         return warnings
 

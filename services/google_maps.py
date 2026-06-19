@@ -1,6 +1,7 @@
 """Google Maps API service — Places API (New) + Directions API."""
 
 import logging
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import requests
 import googlemaps
 from models.attraction import Attraction
@@ -43,18 +44,30 @@ class GoogleMapsService:
         Returns:
             List of Attraction objects from Google Maps.
         """
+        # Parallel category search
+        category_results: dict[str, list[dict]] = {}
+
+        def _search_category(category: str) -> tuple[str, list[dict]]:
+            query = f"{category} in {city}"
+            try:
+                results = self._text_search(query, max_results=max_results)
+                return category, results
+            except Exception as e:
+                logger.warning(f"Places search failed for '{query}': {e}")
+                return category, []
+
+        with ThreadPoolExecutor(max_workers=min(len(categories), 5)) as executor:
+            futures = {executor.submit(_search_category, cat): cat for cat in categories}
+            for future in as_completed(futures):
+                category, results = future.result()
+                category_results[category] = results
+
+        # Parse and deduplicate
         attractions: list[Attraction] = []
         seen_place_ids: set[str] = set()
 
         for category in categories:
-            query = f"{category} in {city}"
-            try:
-                results = self._text_search(query, max_results=max_results)
-            except Exception as e:
-                logger.warning(f"Places search failed for '{query}': {e}")
-                continue
-
-            for place in results:
+            for place in category_results.get(category, []):
                 if len(attractions) >= max_results:
                     break
 
@@ -67,7 +80,7 @@ class GoogleMapsService:
                 if attraction:
                     attractions.append(attraction)
 
-        logger.info(f"Found {len(attractions)} attractions total")
+        logger.info(f"Found {len(attractions)} attractions total (parallel search)")
         return attractions
 
     def get_place_details(self, place_id: str) -> dict:

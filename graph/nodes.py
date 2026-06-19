@@ -1,11 +1,13 @@
 """Node implementations for the LangGraph travel planning workflow."""
 
 import logging
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from graph.state import TravelState
 from agents.preference_agent import PreferenceAgent
 from agents.discovery_agent import DiscoveryAgent
 from agents.logistics_agent import LogisticsAgent
 from agents.validation_agent import ValidationAgent
+from models.meal import MealType
 from services.google_maps import GoogleMapsService
 from services.llm import LLMService
 
@@ -90,12 +92,53 @@ def create_discovery_node(
 
             logger.info(f"Found {len(attractions)} attractions")
 
-            # Enrich top attractions with descriptions
+            # Parallel enrichment with ThreadPoolExecutor
+            place_details_cache: dict[str, dict] = state.get("place_details_cache", {})
             enriched: list = []
-            for attr in attractions:
-                enriched.append(discovery_agent.enrich_attraction(attr))
 
-            return {"attractions": enriched, "status": "running"}
+            def _enrich_one(attr):
+                return discovery_agent.enrich_attraction(attr, place_details_cache)
+
+            with ThreadPoolExecutor(max_workers=6) as executor:
+                futures = {executor.submit(_enrich_one, attr): attr for attr in attractions}
+                for future in as_completed(futures):
+                    try:
+                        result = future.result()
+                        enriched.append(result)
+                    except Exception as e:
+                        attr = futures[future]
+                        logger.warning(f"Enrichment failed for {attr.name}: {e}")
+                        enriched.append(attr)
+
+            # Preserve order (as_completed returns unordered)
+            name_to_idx = {a.name: i for i, a in enumerate(attractions)}
+            enriched.sort(key=lambda a: name_to_idx.get(a.name, 999))
+
+            # Batch generate descriptions for attractions missing them
+            enriched = discovery_agent.batch_generate_descriptions(enriched)
+
+            logger.info(f"Enriched {len(enriched)} attractions (parallel)")
+
+            # Discover restaurants if meal preferences exist
+            restaurants: dict[str, list] = {}
+            meal_preferences = state.get("meal_preferences", {})
+            if meal_preferences:
+                meal_types = [MealType(mt) for mt, count in meal_preferences.items() if count > 0]
+                if meal_types:
+                    logger.info(f"Discovering restaurants for: {[mt.value for mt in meal_types]}")
+                    restaurants = discovery_agent.discover_restaurants(
+                        city=city,
+                        profile=profile,
+                        meal_types=meal_types,
+                        num_days=state["num_days"],
+                    )
+
+            return {
+                "attractions": enriched,
+                "restaurants": restaurants,
+                "place_details_cache": place_details_cache,
+                "status": "running",
+            }
         except Exception as e:
             logger.error(f"Discovery Agent error: {e}")
             return {
@@ -135,11 +178,22 @@ def create_logistics_node(
                     "status": "failed",
                 }
 
+            # Get restaurants from state (keyed by string meal type)
+            raw_restaurants = state.get("restaurants", {})
+            restaurants = {}
+            for mt_str, restaurant_list in raw_restaurants.items():
+                try:
+                    mt = MealType(mt_str)
+                    restaurants[mt] = restaurant_list
+                except ValueError:
+                    pass
+
             itinerary = logistics_agent.plan_itinerary(
                 city=state["city"],
                 attractions=attractions,
                 num_days=state["num_days"],
                 profile=profile,
+                restaurants=restaurants if restaurants else None,
             )
 
             return {"itinerary": itinerary, "status": "running"}
@@ -175,7 +229,8 @@ def create_validation_node(
                     "status": "failed",
                 }
 
-            result = validation_agent.validate(itinerary, profile)
+            place_details_cache = state.get("place_details_cache", {})
+            result = validation_agent.validate(itinerary, profile, place_details_cache)
 
             if result.approved:
                 return {
