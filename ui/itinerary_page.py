@@ -3,6 +3,7 @@
 import streamlit as st
 from models.profile import TravelProfile
 from models.itinerary import Itinerary
+from models.meal import MEAL_LABELS, MEAL_ICONS, MealType
 from graph.builder import build_travel_graph, create_initial_state
 from services.google_maps import GoogleMapsService
 from services.llm import LLMService
@@ -21,8 +22,8 @@ def render_itinerary_page() -> None:
 
     st.header("🗺️ Plan Podróży")
 
-    # City and days input
-    col1, col2 = st.columns(2)
+    # City, days, and budget input
+    col1, col2, col3 = st.columns(3)
     with col1:
         city = st.text_input("🏙️ Miasto docelowe", value=st.session_state.get("city", "Kraków"))
     with col2:
@@ -31,6 +32,15 @@ def render_itinerary_page() -> None:
             min_value=1,
             max_value=14,
             value=st.session_state.get("num_days", 3),
+        )
+    with col3:
+        budget_amount = st.number_input(
+            "💰 Budżet (PLN)",
+            min_value=0,
+            max_value=100000,
+            step=100,
+            value=int(st.session_state.get("budget_amount", 0)),
+            help="Całkowity budżet na wyjazd w PLN. 0 = bez limitu.",
         )
 
     # Generate button
@@ -41,6 +51,20 @@ def render_itinerary_page() -> None:
 
         st.session_state["city"] = city
         st.session_state["num_days"] = num_days
+        st.session_state["budget_amount"] = budget_amount
+
+        # Get meal preferences from profile or quiz
+        meal_preferences = {}
+        if profile and hasattr(profile, "meal_preferences"):
+            meal_preferences = profile.meal_preferences
+        elif "quiz_answers" in st.session_state:
+            meals_raw = st.session_state["quiz_answers"].get("meals", [])
+            if isinstance(meals_raw, list):
+                meal_preferences = {
+                    "breakfast": 1 if "breakfast" in meals_raw else 0,
+                    "lunch": 1 if "lunch" in meals_raw else 0,
+                    "dinner": 1 if "dinner" in meals_raw else 0,
+                }
 
         with st.spinner("Generuję plan podróży... To może chwilę zająć."):
             try:
@@ -55,6 +79,9 @@ def render_itinerary_page() -> None:
                     num_days=num_days,
                     budget=0,
                     quiz_answers=st.session_state.get("quiz_answers", {}),
+                    budget_amount=budget_amount if budget_amount > 0 else None,
+                    meal_preferences=meal_preferences,
+                    chat_context=st.session_state.get("chat_context", ""),
                 )
 
                 # Override profile in state
@@ -121,37 +148,81 @@ def _display_itinerary(itinerary: Itinerary) -> None:
             with col2:
                 st.caption(f"🚶 Podróż: {day.total_travel_minutes} min")
 
-            # Attractions
+            # Build timeline: interleave meals and attractions by time
+            timeline: list[tuple[str, object]] = []
+
+            # Add meals to timeline
+            for meal in day.meals:
+                timeline.append(("meal", meal))
+
+            # Add attractions to timeline
             for i, attr in enumerate(day.attractions):
-                with st.container():
-                    col1, col2 = st.columns([1, 3])
+                timeline.append(("attraction", (i, attr)))
 
-                    with col1:
-                        st.markdown(f"**{i + 1}.**")
-                        st.markdown(f"⭐ {attr.rating}/5")
+            # Sort by scheduled time (meals) or order (attractions)
+            # Simple approach: breakfast before attractions, lunch in middle, dinner after
+            def _sort_key(item):
+                kind, data = item
+                if kind == "meal":
+                    return (0, data.scheduled_time)
+                else:
+                    return (1, f"{data[0]:03d}")
 
-                    with col2:
-                        st.markdown(f"### {attr.name}")
-                        st.caption(f"📍 {attr.address}")
-                        st.caption(f"⏱️ {attr.visit_duration_minutes} min")
+            timeline.sort(key=_sort_key)
 
-                        if attr.description:
-                            st.markdown(attr.description)
+            # Display timeline
+            meal_idx = 0
+            attr_idx = 0
+            for kind, data in timeline:
+                if kind == "meal":
+                    meal = data
+                    icon = MEAL_ICONS.get(meal.meal_type, "🍽️")
+                    label = MEAL_LABELS.get(meal.meal_type, "Posiłek")
+                    with st.container():
+                        col1, col2 = st.columns([1, 3])
+                        with col1:
+                            st.markdown(f"**{icon}**")
+                            st.markdown(f"⭐ {meal.rating}/5" if meal.rating else "")
+                        with col2:
+                            st.markdown(f"### {icon} {label}")
+                            st.caption(f"🕐 {meal.scheduled_time} ({meal.duration_minutes} min)")
+                            st.caption(f"📍 {meal.restaurant_name}")
+                            if meal.restaurant_address:
+                                st.caption(meal.restaurant_address)
+                            if meal.description:
+                                st.markdown(meal.description)
+                        st.divider()
+                else:
+                    i, attr = data
+                    with st.container():
+                        col1, col2 = st.columns([1, 3])
 
-                        if attr.opening_hours:
-                            with st.popover("🕐 Godziny otwarcia"):
-                                for day_name, hours in attr.opening_hours.items():
-                                    st.text(f"{day_name}: {hours}")
+                        with col1:
+                            st.markdown(f"**{i + 1}.**")
+                            st.markdown(f"⭐ {attr.rating}/5")
 
-                    # Route to next
-                    if i < len(day.route_segments):
-                        seg = day.route_segments[i]
-                        st.caption(
-                            f"🚶 {seg.duration_minutes} min do {seg.to_name} "
-                            f"({seg.distance_meters}m)"
-                        )
+                        with col2:
+                            st.markdown(f"### {attr.name}")
+                            st.caption(f"📍 {attr.address}")
+                            st.caption(f"⏱️ {attr.visit_duration_minutes} min")
 
-                    st.divider()
+                            if attr.description:
+                                st.markdown(attr.description)
+
+                            if attr.opening_hours:
+                                with st.popover("🕐 Godziny otwarcia"):
+                                    for day_name, hours in attr.opening_hours.items():
+                                        st.text(f"{day_name}: {hours}")
+
+                        # Route to next attraction
+                        if i < len(day.route_segments):
+                            seg = day.route_segments[i]
+                            st.caption(
+                                f"🚶 {seg.duration_minutes} min do {seg.to_name} "
+                                f"({seg.distance_meters}m)"
+                            )
+
+                        st.divider()
 
     # Validation warnings
     validation = st.session_state.get("validation")

@@ -23,6 +23,23 @@ def render_quiz_page(preference_agent: PreferenceAgent) -> None:
             qid = question["id"]
             st.subheader(question["question"])
 
+            if question.get("note"):
+                st.caption(question["note"])
+
+            # Number input type
+            if question.get("type") == "number":
+                answers[qid] = st.number_input(
+                    label=question["question"],
+                    min_value=0,
+                    max_value=100000,
+                    step=100,
+                    value=0,
+                    key=f"quiz_{qid}",
+                    label_visibility="collapsed",
+                    placeholder=question.get("placeholder", ""),
+                )
+                continue
+
             options = [opt["label"] for opt in question["options"]]
             value_map = {opt["label"]: opt["value"] for opt in question["options"]}
 

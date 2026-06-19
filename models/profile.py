@@ -39,6 +39,10 @@ class TravelProfile(BaseModel):
     style: TravelStyle = Field(description="Primary travel style")
     pace: Pace = Field(description="Preferred sightseeing pace")
     budget: BudgetLevel = Field(description="Budget level for the trip")
+    budget_amount: float | None = Field(
+        default=None,
+        description="Numeric budget in PLN for the entire trip",
+    )
 
     preferred_categories: list[str] = Field(
         description="Attraction categories the user prefers",
@@ -58,6 +62,11 @@ class TravelProfile(BaseModel):
     dietary_restrictions: list[str] = Field(
         default_factory=list,
         description="Dietary restrictions for restaurant recommendations",
+    )
+
+    meal_preferences: dict[str, int] = Field(
+        default_factory=dict,
+        description="Meal preferences: {breakfast: count, lunch: count, dinner: count} per day",
     )
 
     mobility_notes: str = Field(

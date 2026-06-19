@@ -76,6 +76,23 @@ QUIZ_QUESTIONS: list[dict] = [
         ],
         "multi": True,
     },
+    {
+        "id": "budget_amount",
+        "question": "Jaki masz budżet na cały wyjazd (w PLN)?",
+        "type": "number",
+        "placeholder": "np. 3000",
+    },
+    {
+        "id": "meals",
+        "question": "Ile posiłków dziennie chcesz jeść w restauracji?",
+        "options": [
+            {"value": "breakfast", "label": "🍳 Śniadanie"},
+            {"value": "lunch", "label": "🍲 Obiad"},
+            {"value": "dinner", "label": "🍽️ Kolacja"},
+        ],
+        "multi": True,
+        "note": "Wybierz posiłki, które chcesz mieć w planie każdego dnia.",
+    },
 ]
 
 
@@ -109,10 +126,12 @@ generate a travel profile. You MUST return a JSON object with exactly these fiel
     "style": one of ["cultural", "adventure", "relaxation", "foodie", "nightlife", "family", "budget", "luxury"],
     "pace": one of ["relaxed", "moderate", "intense"],
     "budget": one of ["low", "medium", "high"],
+    "budget_amount": number or null (numeric budget in PLN if provided),
     "preferred_categories": list of category strings from the answers,
     "avoid_categories": list of categories to avoid (infer from what was NOT selected),
     "interests": list of interest strings from the answers,
     "dietary_restrictions": list of dietary restriction strings (empty list if none),
+    "meal_preferences": {"breakfast": 0 or 1, "lunch": 0 or 1, "dinner": 0 or 1} based on meal answers,
     "mobility_notes": string with any mobility notes (empty string if none),
     "summary": one-paragraph human-readable summary in Polish describing the travel personality
 }
@@ -167,6 +186,10 @@ def _build_fallback_profile(answers: dict[str, list[str] | str]) -> dict:
     budget_raw = answers.get("budget", "medium")
     budget = budget_raw if isinstance(budget_raw, str) else "medium"
 
+    # Numeric budget
+    budget_amount_raw = answers.get("budget_amount", 0)
+    budget_amount = float(budget_amount_raw) if budget_amount_raw and float(budget_amount_raw) > 0 else None
+
     categories = answers.get("categories", ["landmark", "museum"])
     if not isinstance(categories, list):
         categories = [categories]
@@ -180,14 +203,26 @@ def _build_fallback_profile(answers: dict[str, list[str] | str]) -> dict:
         dietary = [dietary]
     dietary = [d for d in dietary if d != "none"]
 
+    # Meal preferences
+    meals_raw = answers.get("meals", [])
+    if not isinstance(meals_raw, list):
+        meals_raw = [meals_raw]
+    meal_preferences = {
+        "breakfast": 1 if "breakfast" in meals_raw else 0,
+        "lunch": 1 if "lunch" in meals_raw else 0,
+        "dinner": 1 if "dinner" in meals_raw else 0,
+    }
+
     return {
         "style": style,
         "pace": pace,
         "budget": budget,
+        "budget_amount": budget_amount,
         "preferred_categories": categories,
         "avoid_categories": [],
         "interests": interests,
         "dietary_restrictions": dietary,
+        "meal_preferences": meal_preferences,
         "mobility_notes": "",
         "summary": f"Podróżnik preferujący styl {style} w tempie {pace}.",
     }
