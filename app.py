@@ -10,6 +10,7 @@ logging.basicConfig(level=logging.INFO, format="%(name)s: %(message)s")
 from ui.quiz_page import render_quiz_page
 from ui.results_page import render_results_page
 from ui.itinerary_page import render_itinerary_page
+from ui.chat_page import render_chat_page
 from agents.preference_agent import PreferenceAgent
 from services.llm import LLMService
 
@@ -27,7 +28,7 @@ def main() -> None:
 
     # Initialize session state
     if "page" not in st.session_state:
-        st.session_state["page"] = "quiz"
+        st.session_state["page"] = "chat"
 
     # Initialize services (cached)
     try:
@@ -47,9 +48,10 @@ def main() -> None:
         st.header("Nawigacja")
         page = st.radio(
             "Strona",
-            options=["quiz", "results", "itinerary"],
+            options=["chat", "quiz", "results", "itinerary"],
             format_func=lambda x: {
-                "quiz": "📝 Quiz podróżniczy",
+                "chat": "💬 Rozmowa z AI",
+                "quiz": "📝 Szybki quiz",
                 "results": "🧑‍💼 Profil",
                 "itinerary": "🗺️ Plan podróży",
             }.get(x, x),
@@ -68,16 +70,18 @@ def main() -> None:
         )
 
     # Render current page
-    page = st.session_state.get("page", "quiz")
+    page = st.session_state.get("page", "chat")
 
-    if page == "quiz":
+    if page == "chat":
+        render_chat_page(llm_service)
+    elif page == "quiz":
         render_quiz_page(preference_agent)
     elif page == "results":
         render_results_page()
     elif page == "itinerary":
         render_itinerary_page()
     else:
-        st.session_state["page"] = "quiz"
+        st.session_state["page"] = "chat"
         st.rerun()
 
 
