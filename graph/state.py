@@ -13,6 +13,7 @@ class TravelState(TypedDict):
 
     # Input
     city: str
+    country: str
     num_days: int
     budget: float
     budget_amount: float | None

@@ -33,6 +33,7 @@ class GoogleMapsService:
         city: str,
         categories: list[str],
         max_results: int = 20,
+        country: str = "",
     ) -> list[Attraction]:
         """Search for attractions using Places API (New) searchText.
 
@@ -40,15 +41,19 @@ class GoogleMapsService:
             city: Target city name.
             categories: Category filters (e.g., ["museum", "park"]).
             max_results: Maximum number of results to return.
+            country: Optional country name to disambiguate the search.
 
         Returns:
             List of Attraction objects from Google Maps.
         """
+        # Build location string with country for disambiguation
+        location = f"{city}, {country}" if country else city
+
         # Parallel category search
         category_results: dict[str, list[dict]] = {}
 
         def _search_category(category: str) -> tuple[str, list[dict]]:
-            query = f"{category} in {city}"
+            query = f"{category} in {location}"
             try:
                 results = self._text_search(query, max_results=max_results)
                 return category, results

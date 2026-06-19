@@ -82,6 +82,7 @@ def render_itinerary_page() -> None:
                     budget_amount=budget_amount if budget_amount > 0 else None,
                     meal_preferences=meal_preferences,
                     chat_context=st.session_state.get("chat_context", ""),
+                    country=st.session_state.get("country", ""),
                 )
 
                 # Override profile in state

@@ -110,6 +110,7 @@ def create_initial_state(
     budget_amount: float | None = None,
     meal_preferences: dict[str, int] | None = None,
     chat_context: str = "",
+    country: str = "",
 ) -> TravelState:
     """Create the initial state for the travel planning graph.
 
@@ -121,12 +122,14 @@ def create_initial_state(
         budget_amount: Numeric budget in PLN for the entire trip.
         meal_preferences: Meal counts per day (breakfast, lunch, dinner).
         chat_context: Context from chat conversation.
+        country: Country name for disambiguating city search.
 
     Returns:
         Initial TravelState dictionary.
     """
     return TravelState(
         city=city,
+        country=country,
         num_days=num_days,
         budget=budget,
         budget_amount=budget_amount,

@@ -72,13 +72,15 @@ def create_discovery_node(
                 }
 
             city = state["city"]
-            logger.info(f"Discovering attractions in {city} for {profile.style.value} traveler")
+            country = state.get("country", "")
+            logger.info(f"Discovering attractions in {city}, {country} for {profile.style.value} traveler")
             logger.info(f"Preferred categories: {profile.preferred_categories}")
 
             attractions = discovery_agent.discover(
                 city=city,
                 profile=profile,
                 num_days=state["num_days"],
+                country=country,
             )
 
             if not attractions:
@@ -131,6 +133,7 @@ def create_discovery_node(
                         profile=profile,
                         meal_types=meal_types,
                         num_days=state["num_days"],
+                        country=country,
                     )
 
             return {

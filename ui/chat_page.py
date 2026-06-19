@@ -118,6 +118,7 @@ def _handle_summarize(chat_service: ChatService) -> None:
                 ],
             }
             st.session_state["city"] = city
+            st.session_state["country"] = summary.get("country", "")
             st.session_state["num_days"] = num_days
             st.session_state["budget_amount"] = summary.get("budget_amount", 0)
             st.session_state["meal_preferences"] = summary.get(

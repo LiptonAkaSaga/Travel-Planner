@@ -28,6 +28,7 @@ class DiscoveryAgent:
         city: str,
         profile: TravelProfile,
         num_days: int,
+        country: str = "",
     ) -> list[Attraction]:
         """Discover attractions in a city matching the travel profile.
 
@@ -35,6 +36,7 @@ class DiscoveryAgent:
             city: Target city name.
             profile: User's travel profile.
             num_days: Number of trip days.
+            country: Country name for disambiguating the search.
 
         Returns:
             List of Attraction objects sorted by relevance.
@@ -52,6 +54,7 @@ class DiscoveryAgent:
             city=city,
             categories=profile.preferred_categories,
             max_results=target_count * 2,  # Fetch extra for filtering
+            country=country,
         )
 
         # Filter out avoided categories
@@ -219,6 +222,7 @@ class DiscoveryAgent:
         profile: TravelProfile,
         meal_types: list[MealType],
         num_days: int,
+        country: str = "",
     ) -> dict[MealType, list[Attraction]]:
         """Discover restaurants for specific meal types.
 
@@ -227,6 +231,7 @@ class DiscoveryAgent:
             profile: User's travel profile.
             meal_types: Which meal types to find restaurants for.
             num_days: Number of trip days.
+            country: Country name for disambiguating the search.
 
         Returns:
             Dictionary mapping meal type to list of restaurant attractions.
@@ -246,12 +251,14 @@ class DiscoveryAgent:
             dietary_labels = [dietary_map.get(d, d) for d in profile.dietary_restrictions]
             dietary_filter = " " + " ".join(dietary_labels)
 
+        location = f"{city}, {country}" if country else city
+
         for meal_type in meal_types:
             # Build search query based on meal type
             query_map = {
-                MealType.BREAKFAST: f"śniadanie kawiarnia{dietary_filter} in {city}",
-                MealType.LUNCH: f"restauracja obiad{dietary_filter} in {city}",
-                MealType.DINNER: f"restauracja kolacja{dietary_filter} in {city}",
+                MealType.BREAKFAST: f"śniadanie kawiarnia{dietary_filter} in {location}",
+                MealType.LUNCH: f"restauracja obiad{dietary_filter} in {location}",
+                MealType.DINNER: f"restauracja kolacja{dietary_filter} in {location}",
             }
             query = query_map[meal_type]
 
@@ -260,6 +267,7 @@ class DiscoveryAgent:
                     city=city,
                     categories=["restaurant"],
                     max_results=num_days * 3,  # Extra for variety
+                    country=country,
                 )
                 # Filter and score
                 scored = self._score_attractions(raw, profile)

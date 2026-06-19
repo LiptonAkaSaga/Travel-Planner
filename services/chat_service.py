@@ -12,7 +12,7 @@ SYSTEM_PROMPT = """Jesteś TravelMind — sympatyczny i pomocny asystent podró�
 Twoim celem jest zebranie informacji o podróży użytkownika poprzez naturalną rozmowę.
 
 Pytaj o:
-1. Dokąd użytkownik chce jechać (miasto/destynacja)
+1. Dokąd użytkownik chce jechać (miasto i kraj — np. "Madera, Portugalia")
 2. Ile dni planuje wyjazd
 3. Jaki ma budżet na cały wyjazd (w PLN)
 4. Co go interesuje (zabytki, muzea, natura, jedzenie, rozrywka itp.)
@@ -37,6 +37,7 @@ SUMMARIZE_PROMPT = """Przeanalizuj poniższą rozmowę z użytkownikiem i wycią
 Zwróć JSON z następującymi polami:
 {
     "city": "nazwa miasta",
+    "country": "nazwa kraju",
     "num_days": liczba_dni,
     "budget_amount": budżet_w_PLN_lub_null,
     "style": jeden_z ["cultural", "adventure", "relaxation", "foodie", "nightlife", "family", "budget", "luxury"],
@@ -51,6 +52,7 @@ Zwróć JSON z następującymi polami:
 
 WAŻNE:
 - city MUSI być podane (jeśli nie wiadomo, zwróć null)
+- country MUSI być podane — nazwa kraju po polsku (np. "Portugalia", "Meksyk", "Włochy")
 - Jeśli użytkownik nie podał budżetu, budget_amount = null
 - Jeśli użytkownik nie mówił o posiłkach, domyślnie lunch=1
 - Kategorie mogą być: museum, park, landmark, church, restaurant, shopping, viewpoint, entertainment
