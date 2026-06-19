@@ -394,3 +394,11 @@ def _haversine(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
     c = 2 * atan2(sqrt(a), sqrt(1 - a))
 
     return R * c
+
+
+def _time_to_minutes(time_str: str) -> int:
+    """Convert HH:MM time string to minutes since midnight."""
+    parts = time_str.split(":")
+    if len(parts) == 2:
+        return int(parts[0]) * 60 + int(parts[1])
+    return 0
