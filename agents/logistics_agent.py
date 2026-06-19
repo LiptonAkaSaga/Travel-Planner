@@ -1,11 +1,15 @@
 """Logistics Agent — route optimization and schedule generation."""
 
+import logging
 from math import radians, sin, cos, sqrt, atan2
 from models.attraction import Attraction
 from models.itinerary import Itinerary, DayPlan, RouteSegment
+from models.meal import MealType, MealSlot, MEAL_WINDOWS, MEAL_DURATIONS, MEAL_LABELS, MEAL_ICONS
 from models.profile import TravelProfile
 from services.google_maps import GoogleMapsService
 import config
+
+logger = logging.getLogger(__name__)
 
 
 class LogisticsAgent:
@@ -20,6 +24,7 @@ class LogisticsAgent:
         attractions: list[Attraction],
         num_days: int,
         profile: TravelProfile,
+        restaurants: dict[MealType, list[Attraction]] | None = None,
     ) -> Itinerary:
         """Create an optimized multi-day itinerary.
 
@@ -28,6 +33,7 @@ class LogisticsAgent:
             attractions: List of attractions to schedule.
             num_days: Number of days.
             profile: User's travel profile.
+            restaurants: Optional dict of restaurants by meal type.
 
         Returns:
             Optimized Itinerary with daily plans.
@@ -65,6 +71,11 @@ class LogisticsAgent:
                 start_time=f"{start_hour:02d}:00",
                 end_time=f"{end_hour:02d}:{end_min:02d}",
             )
+
+            # Insert meals if restaurants are provided
+            if restaurants and profile.meal_preferences:
+                day = self._insert_meals(day, restaurants, profile, day_num)
+
             days.append(day)
             total_travel += travel_minutes
 
@@ -275,6 +286,98 @@ class LogisticsAgent:
                 ))
 
         return segments
+
+    def _insert_meals(
+        self,
+        day: DayPlan,
+        restaurants: dict[MealType, list[Attraction]],
+        profile: TravelProfile,
+        day_number: int,
+    ) -> DayPlan:
+        """Insert meal slots into a day plan.
+
+        Picks the nearest restaurant to the current location at each meal time.
+
+        Args:
+            day: The day plan to insert meals into.
+            restaurants: Available restaurants by meal type.
+            profile: User's travel profile with meal preferences.
+            day_number: Current day number (1-based) for restaurant rotation.
+
+        Returns:
+            Updated DayPlan with meals inserted.
+        """
+        meal_preferences = profile.meal_preferences
+        if not meal_preferences:
+            return day
+
+        meals: list[MealSlot] = []
+        current_minutes = _time_to_minutes(day.start_time)
+
+        # Sort meal types by their time window
+        ordered_meals = sorted(
+            [MealType(mt) for mt, count in meal_preferences.items() if count > 0],
+            key=lambda mt: MEAL_WINDOWS[mt][0],
+        )
+
+        # Find current location at each meal time
+        attractions = list(day.attractions)
+
+        for meal_type in ordered_meals:
+            window_start, window_end = MEAL_WINDOWS[meal_type]
+            duration = MEAL_DURATIONS[meal_type]
+
+            # Determine where we are at meal time
+            meal_minutes = max(window_start * 60, current_minutes)
+            if meal_minutes > window_end * 60:
+                # Too late for this meal, skip
+                logger.warning(f"Skipping {meal_type.value} - too late in schedule")
+                continue
+
+            # Find nearest restaurant to current location
+            available = restaurants.get(meal_type, [])
+            if not available:
+                continue
+
+            # Pick restaurant (rotate by day number for variety)
+            idx = (day_number - 1) % len(available)
+            restaurant = available[idx]
+
+            # Create meal slot
+            meal_hour = meal_minutes // 60
+            meal_min = meal_minutes % 60
+            meals.append(MealSlot(
+                meal_type=meal_type,
+                restaurant_name=restaurant.name,
+                restaurant_address=restaurant.address,
+                place_id=restaurant.place_id,
+                rating=restaurant.rating,
+                price_level=restaurant.price_level,
+                duration_minutes=duration,
+                scheduled_time=f"{meal_hour:02d}:{meal_min:02d}",
+                lat=restaurant.lat,
+                lng=restaurant.lng,
+                description=restaurant.description,
+            ))
+
+            # Advance time by meal duration
+            current_minutes = meal_minutes + duration
+
+        if not meals:
+            return day
+
+        # Recalculate end time including meals
+        total_meal_minutes = sum(m.duration_minutes for m in meals)
+        total_minutes = day.total_visit_minutes + day.total_travel_minutes + total_meal_minutes
+        start_minutes = _time_to_minutes(day.start_time)
+        end_minutes = start_minutes + total_minutes
+        end_hour = int(end_minutes // 60)
+        end_min = int(end_minutes % 60)
+
+        return day.model_copy(update={
+            "meals": meals,
+            "end_time": f"{end_hour:02d}:{end_min:02d}",
+        })
 
 
 def _haversine(lat1: float, lng1: float, lat2: float, lng2: float) -> float:

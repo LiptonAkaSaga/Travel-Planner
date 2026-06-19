@@ -2,6 +2,7 @@
 
 from pydantic import BaseModel, Field
 from models.attraction import Attraction
+from models.meal import MealSlot
 
 
 class RouteSegment(BaseModel):
@@ -23,6 +24,10 @@ class DayPlan(BaseModel):
 
     day_number: int = Field(ge=1, description="Day number (1-based)")
     attractions: list[Attraction] = Field(description="Ordered list of attractions")
+    meals: list[MealSlot] = Field(
+        default_factory=list,
+        description="Scheduled meals for the day",
+    )
     route_segments: list[RouteSegment] = Field(
         default_factory=list,
         description="Route segments between attractions",
