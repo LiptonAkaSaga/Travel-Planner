@@ -44,6 +44,7 @@ class LogisticsAgent:
         # Optimize each day's route
         days: list[DayPlan] = []
         total_travel = 0
+        used_restaurant_ids: set[str] = set()  # Track used restaurants across all days
 
         for day_num, group in enumerate(daily_groups, start=1):
             # Optimize ordering using nearest neighbor
@@ -74,7 +75,7 @@ class LogisticsAgent:
 
             # Insert meals if restaurants are provided
             if restaurants and profile.meal_preferences:
-                day = self._insert_meals(day, restaurants, profile, day_num)
+                day = self._insert_meals(day, restaurants, profile, day_num, used_restaurant_ids)
 
             days.append(day)
             total_travel += travel_minutes
@@ -298,16 +299,19 @@ class LogisticsAgent:
         restaurants: dict[MealType, list[Attraction]],
         profile: TravelProfile,
         day_number: int,
+        used_restaurant_ids: set[str],
     ) -> DayPlan:
         """Insert meal slots into a day plan.
 
-        Picks the nearest restaurant to the current location at each meal time.
+        Picks unique restaurants for each meal, never reusing one
+        already assigned earlier in the trip.
 
         Args:
             day: The day plan to insert meals into.
             restaurants: Available restaurants by meal type.
             profile: User's travel profile with meal preferences.
-            day_number: Current day number (1-based) for restaurant rotation.
+            day_number: Current day number (1-based).
+            used_restaurant_ids: Set of already-used place_ids (mutated in place).
 
         Returns:
             Updated DayPlan with meals inserted.
@@ -325,9 +329,6 @@ class LogisticsAgent:
             key=lambda mt: MEAL_WINDOWS[mt][0],
         )
 
-        # Find current location at each meal time
-        attractions = list(day.attractions)
-
         for meal_type in ordered_meals:
             window_start, window_end = MEAL_WINDOWS[meal_type]
             duration = MEAL_DURATIONS[meal_type]
@@ -335,18 +336,23 @@ class LogisticsAgent:
             # Determine where we are at meal time
             meal_minutes = max(window_start * 60, current_minutes)
             if meal_minutes > window_end * 60:
-                # Too late for this meal, skip
                 logger.warning(f"Skipping {meal_type.value} - too late in schedule")
                 continue
 
-            # Find nearest restaurant to current location
-            available = restaurants.get(meal_type, [])
+            # Filter out already-used restaurants
+            available = [
+                r for r in restaurants.get(meal_type, [])
+                if r.place_id not in used_restaurant_ids
+            ]
             if not available:
-                continue
+                # Fallback: reset used set for this meal type if all are exhausted
+                available = restaurants.get(meal_type, [])
+                if not available:
+                    continue
 
-            # Pick restaurant (rotate by day number for variety)
-            idx = (day_number - 1) % len(available)
-            restaurant = available[idx]
+            # Pick first available (list is already scored)
+            restaurant = available[0]
+            used_restaurant_ids.add(restaurant.place_id)
 
             # Create meal slot
             meal_hour = meal_minutes // 60
