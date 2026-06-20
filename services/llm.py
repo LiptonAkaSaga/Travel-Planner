@@ -1,4 +1,4 @@
-"""LLM service using OpenAI API via LangChain."""
+"""LLM service — supports OpenAI-compatible and Google Gemini providers."""
 
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import SystemMessage, HumanMessage
@@ -6,15 +6,41 @@ import config
 
 
 class LLMService:
-    """Wrapper around OpenAI API via LangChain."""
+    """Wrapper around LLM APIs via LangChain.
 
-    def __init__(self, api_key: str = "") -> None:
+    Supports two providers:
+    - openai: OpenAI-compatible API (mimo, etc.)
+    - google: Google Gemini API
+    """
+
+    def __init__(
+        self,
+        provider: str = "openai",
+        model: str = "",
+        api_key: str = "",
+    ) -> None:
+        """Initialize LLM service.
+
+        Args:
+            provider: 'openai' or 'google'.
+            model: Model name override. If empty, uses config default.
+            api_key: API key override. If empty, uses config default.
+        """
+        self._provider = provider
+
+        if provider == "google":
+            self._init_google(model, api_key)
+        else:
+            self._init_openai(model, api_key)
+
+    def _init_openai(self, model: str = "", api_key: str = "") -> None:
+        """Initialize OpenAI-compatible client."""
         key = api_key or config.OPENAI_API_KEY
         if not key:
-            raise ValueError("OPENAI_API_KEY is required")
+            raise ValueError("OPENAI_API_KEY is required for OpenAI provider")
 
         kwargs: dict = {
-            "model": config.OPENAI_MODEL,
+            "model": model or config.OPENAI_MODEL,
             "openai_api_key": key,
             "temperature": 0.7,
         }
@@ -22,6 +48,20 @@ class LLMService:
             kwargs["openai_api_base"] = config.OPENAI_BASE_URL
 
         self._llm = ChatOpenAI(**kwargs)
+
+    def _init_google(self, model: str = "", api_key: str = "") -> None:
+        """Initialize Google Gemini client."""
+        key = api_key or config.GEMINI_API_KEY
+        if not key:
+            raise ValueError("GEMINI_API_KEY is required for Google provider")
+
+        from langchain_google_genai import ChatGoogleGenerativeAI
+
+        self._llm = ChatGoogleGenerativeAI(
+            model=model or config.GEMINI_MODEL,
+            google_api_key=key,
+            temperature=0.7,
+        )
 
     def chat(self, system_prompt: str, user_message: str) -> str:
         """Send a chat request to the LLM.

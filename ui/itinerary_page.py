@@ -8,6 +8,7 @@ from graph.builder import build_travel_graph, create_initial_state
 from services.google_maps import GoogleMapsService
 from services.llm import LLMService
 from ui.map_component import render_map
+import config
 
 
 def _gmaps_link(place_id: str = "", lat: float = 0.0, lng: float = 0.0) -> str:
@@ -88,7 +89,9 @@ def render_itinerary_page() -> None:
             try:
                 # Initialize services
                 maps_service = GoogleMapsService()
-                llm_service = LLMService()
+                selected_model = st.session_state.get("selected_model", "mimo")
+                provider = config.AVAILABLE_MODELS[selected_model]["provider"]
+                llm_service = LLMService(provider=provider)
 
                 # Build and run the graph
                 graph = build_travel_graph(maps_service, llm_service)

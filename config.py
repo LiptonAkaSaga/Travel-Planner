@@ -8,10 +8,28 @@ load_dotenv()
 # API Keys
 GOOGLE_MAPS_API_KEY: str = os.getenv("GOOGLE_MAPS_API_KEY", "")
 
-# LLM settings
+# LLM settings — OpenAI-compatible (mimo)
 OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
 OPENAI_BASE_URL: str = os.getenv("OPENAI_BASE_URL", "")
 OPENAI_MODEL: str = "mimo-v2.5-pro"
+
+# LLM settings — Gemini
+GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
+GEMINI_MODEL: str = "gemini-2.0-flash"
+
+# Available models for user selection
+AVAILABLE_MODELS: dict[str, dict[str, str]] = {
+    "mimo": {
+        "label": "Mimo v2.5 Pro",
+        "provider": "openai",
+        "model": OPENAI_MODEL,
+    },
+    "gemini": {
+        "label": "Gemini 2.0 Flash",
+        "provider": "google",
+        "model": GEMINI_MODEL,
+    },
+}
 
 # Google Maps settings
 DEFAULT_SEARCH_RADIUS_METERS: int = 5000
