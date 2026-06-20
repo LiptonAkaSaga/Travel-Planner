@@ -262,6 +262,11 @@ class LogisticsAgent:
             segment = self._maps.get_route(origin, dest, mode)
 
             if segment:
+                # Override coordinate-based names with actual attraction names
+                segment = segment.model_copy(update={
+                    "from_name": attractions[i].name,
+                    "to_name": attractions[i + 1].name,
+                })
                 segments.append(segment)
             else:
                 # Fallback: estimate from distance

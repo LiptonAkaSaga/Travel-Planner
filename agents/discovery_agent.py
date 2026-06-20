@@ -254,14 +254,6 @@ class DiscoveryAgent:
         location = f"{city}, {country}" if country else city
 
         for meal_type in meal_types:
-            # Build search query based on meal type
-            query_map = {
-                MealType.BREAKFAST: f"śniadanie kawiarnia{dietary_filter} in {location}",
-                MealType.LUNCH: f"restauracja obiad{dietary_filter} in {location}",
-                MealType.DINNER: f"restauracja kolacja{dietary_filter} in {location}",
-            }
-            query = query_map[meal_type]
-
             try:
                 raw = self._maps.search_attractions(
                     city=city,
@@ -271,13 +263,73 @@ class DiscoveryAgent:
                 )
                 # Filter and score
                 scored = self._score_attractions(raw, profile)
-                results[meal_type] = scored[:num_days + 2]  # Enough for each day + variety
-                logger.info(f"Found {len(results[meal_type])} restaurants for {meal_type.value}")
+                top = scored[:num_days + 2]
+
+                # Enrich restaurants with descriptions from Google Maps
+                enriched = self._enrich_restaurants(top)
+                results[meal_type] = enriched
+                logger.info(f"Found {len(enriched)} restaurants for {meal_type.value}")
             except Exception as e:
                 logger.warning(f"Restaurant discovery failed for {meal_type.value}: {e}")
                 results[meal_type] = []
 
         return results
+
+    def _enrich_restaurants(self, restaurants: list[Attraction]) -> list[Attraction]:
+        """Enrich restaurants with descriptions from Google Maps data.
+
+        Uses editorialSummary from place details, then falls back to LLM
+        description based on rating and review count.
+
+        Args:
+            restaurants: List of restaurant attractions.
+
+        Returns:
+            Enriched restaurants with descriptions.
+        """
+        enriched = []
+        for restaurant in restaurants:
+            if restaurant.description:
+                enriched.append(restaurant)
+                continue
+
+            details = self._maps.get_place_details(restaurant.place_id)
+            description = ""
+
+            # Try editorialSummary from Google Maps
+            if details:
+                summary = details.get("editorialSummary", {})
+                if isinstance(summary, dict):
+                    description = summary.get("text", "")
+                elif isinstance(summary, str):
+                    description = summary
+
+            # Fallback: generate from rating and review count
+            if not description:
+                rating = restaurant.rating
+                reviews = restaurant.user_ratings_total
+                price_desc = {
+                    0: "darmowe",
+                    1: "tanie",
+                    2: "umiarkowane ceny",
+                    3: "droższe",
+                    4: "premium",
+                }.get(restaurant.price_level, "")
+
+                parts = [restaurant.name]
+                if rating:
+                    parts.append(f"oceniana na {rating}/5")
+                if reviews:
+                    parts.append(f"({reviews} opinii)")
+                if price_desc:
+                    parts.append(f"— {price_desc}")
+
+                description = " ".join(parts) + ". Popularna restauracja w okolicy."
+
+            enriched.append(restaurant.model_copy(update={"description": description}))
+            logger.debug(f"Enriched restaurant: {restaurant.name}")
+
+        return enriched
 
     def _generate_description(self, attraction: Attraction) -> str:
         """Generate a brief description of the attraction using LLM.

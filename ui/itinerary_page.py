@@ -10,6 +10,24 @@ from services.llm import LLMService
 from ui.map_component import render_map
 
 
+def _gmaps_link(place_id: str = "", lat: float = 0.0, lng: float = 0.0) -> str:
+    """Build a Google Maps link for a place.
+
+    Args:
+        place_id: Google Maps place ID.
+        lat: Latitude fallback.
+        lng: Longitude fallback.
+
+    Returns:
+        URL string to Google Maps.
+    """
+    if place_id:
+        return f"https://www.google.com/maps/place/?q=place_id:{place_id}"
+    if lat and lng:
+        return f"https://www.google.com/maps/@{lat},{lng},17z"
+    return "#"
+
+
 def render_itinerary_page() -> None:
     """Render the itinerary planning and results page."""
     profile: TravelProfile | None = st.session_state.get("profile")
@@ -172,29 +190,30 @@ def _display_itinerary(itinerary: Itinerary) -> None:
             timeline.sort(key=_sort_key)
 
             # Display timeline
-            meal_idx = 0
-            attr_idx = 0
             for kind, data in timeline:
                 if kind == "meal":
                     meal = data
                     icon = MEAL_ICONS.get(meal.meal_type, "🍽️")
                     label = MEAL_LABELS.get(meal.meal_type, "Posiłek")
+                    link = _gmaps_link(meal.place_id, meal.lat, meal.lng)
                     with st.container():
                         col1, col2 = st.columns([1, 3])
                         with col1:
                             st.markdown(f"**{icon}**")
-                            st.markdown(f"⭐ {meal.rating}/5" if meal.rating else "")
+                            if meal.rating:
+                                st.markdown(f"⭐ {meal.rating}/5")
                         with col2:
-                            st.markdown(f"### {icon} {label}")
+                            st.markdown(
+                                f"### {icon} [{label}]({link}){{:target=_blank}}"
+                            )
                             st.caption(f"🕐 {meal.scheduled_time} ({meal.duration_minutes} min)")
                             st.caption(f"📍 {meal.restaurant_name}")
-                            if meal.restaurant_address:
-                                st.caption(meal.restaurant_address)
                             if meal.description:
                                 st.markdown(meal.description)
                         st.divider()
                 else:
                     i, attr = data
+                    link = _gmaps_link(attr.place_id, attr.lat, attr.lng)
                     with st.container():
                         col1, col2 = st.columns([1, 3])
 
@@ -203,7 +222,9 @@ def _display_itinerary(itinerary: Itinerary) -> None:
                             st.markdown(f"⭐ {attr.rating}/5")
 
                         with col2:
-                            st.markdown(f"### {attr.name}")
+                            st.markdown(
+                                f"### [{attr.name}]({link}){{:target=_blank}}"
+                            )
                             st.caption(f"📍 {attr.address}")
                             st.caption(f"⏱️ {attr.visit_duration_minutes} min")
 
@@ -219,8 +240,7 @@ def _display_itinerary(itinerary: Itinerary) -> None:
                         if i < len(day.route_segments):
                             seg = day.route_segments[i]
                             st.caption(
-                                f"🚶 {seg.duration_minutes} min do {seg.to_name} "
-                                f"({seg.distance_meters}m)"
+                                f"🚶 {seg.duration_minutes} min do {seg.to_name}"
                             )
 
                         st.divider()
