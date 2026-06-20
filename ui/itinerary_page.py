@@ -204,7 +204,7 @@ def _display_itinerary(itinerary: Itinerary) -> None:
                                 st.markdown(f"⭐ {meal.rating}/5")
                         with col2:
                             st.markdown(
-                                f"### {icon} [{label}]({link}){{:target=_blank}}"
+                                f"### {icon} [{label}]({link})"
                             )
                             st.caption(f"🕐 {meal.scheduled_time} ({meal.duration_minutes} min)")
                             st.caption(f"📍 {meal.restaurant_name}")
@@ -223,7 +223,7 @@ def _display_itinerary(itinerary: Itinerary) -> None:
 
                         with col2:
                             st.markdown(
-                                f"### [{attr.name}]({link}){{:target=_blank}}"
+                                f"### [{attr.name}]({link})"
                             )
                             st.caption(f"📍 {attr.address}")
                             st.caption(f"⏱️ {attr.visit_duration_minutes} min")
