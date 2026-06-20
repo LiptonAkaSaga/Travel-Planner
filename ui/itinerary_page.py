@@ -101,6 +101,7 @@ def render_itinerary_page() -> None:
                     meal_preferences=meal_preferences,
                     chat_context=st.session_state.get("chat_context", ""),
                     country=st.session_state.get("country", ""),
+                    day_constraints=st.session_state.get("day_constraints", {}),
                 )
 
                 # Override profile in state

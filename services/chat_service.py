@@ -47,6 +47,7 @@ Zwróć JSON z następującymi polami:
     "interests": ["lista", "zainteresowań"],
     "dietary_restrictions": ["lista", "ograniczeń"],
     "meal_preferences": {"breakfast": 0_lub_1, "lunch": 0_lub_1, "dinner": 0_lub_1},
+    "day_constraints": {"numer_dnia": ["lista", "dozwolonych", "kategorii"]},
     "summary": "jednozdaniowe podsumowanie profilu podróżniczego po polsku"
 }
 
@@ -57,6 +58,12 @@ WAŻNE:
 - Jeśli użytkownik nie mówił o posiłkach, domyślnie lunch=1
 - Kategorie mogą być: museum, park, landmark, church, restaurant, shopping, viewpoint, entertainment
 - Zainteresowania mogą być: history, architecture, art, nature, local_culture, street_food, nightlife, photography
+
+DAY_CONSTRAINTS — ograniczenia per dzień:
+- Jeśli użytkownik mówi np. "jeden dzień chcę spędzić na muzeach", zwróć {3: ["museum", "landmark"]}
+- Jeśli mówi "dzień 2 chcę mieć na plaży/relaks", zwróć {2: ["park", "viewpoint"]}
+- Numer dnia wybierz na podstawie kontekstu (jeśli nie podano, użyj dowolnego dnia)
+- Jeśli użytkownik nie mówił o preferencjach per dzień, zwróć pusty {}
 
 Zwróć TYLKO valid JSON, bez markdown."""
 

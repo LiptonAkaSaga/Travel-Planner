@@ -191,12 +191,15 @@ def create_logistics_node(
                 except ValueError:
                     pass
 
+            day_constraints = state.get("day_constraints", {})
+
             itinerary = logistics_agent.plan_itinerary(
                 city=state["city"],
                 attractions=attractions,
                 num_days=state["num_days"],
                 profile=profile,
                 restaurants=restaurants if restaurants else None,
+                day_constraints=day_constraints,
             )
 
             return {"itinerary": itinerary, "status": "running"}

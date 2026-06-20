@@ -30,6 +30,9 @@ class TravelState(TypedDict):
     # Meal preferences
     meal_preferences: dict[str, int]
 
+    # Day-specific constraints: {day_number: [allowed_categories]}
+    day_constraints: dict[int, list[str]]
+
     # Chat context
     chat_context: str
 

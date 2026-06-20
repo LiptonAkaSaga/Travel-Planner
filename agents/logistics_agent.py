@@ -25,6 +25,7 @@ class LogisticsAgent:
         num_days: int,
         profile: TravelProfile,
         restaurants: dict[MealType, list[Attraction]] | None = None,
+        day_constraints: dict[int, list[str]] | None = None,
     ) -> Itinerary:
         """Create an optimized multi-day itinerary.
 
@@ -34,12 +35,21 @@ class LogisticsAgent:
             num_days: Number of days.
             profile: User's travel profile.
             restaurants: Optional dict of restaurants by meal type.
+            day_constraints: Optional per-day category constraints.
+                Format: {day_number: [allowed_categories]}
 
         Returns:
             Optimized Itinerary with daily plans.
         """
-        # Cluster attractions into daily groups by geography
-        daily_groups = self._cluster_by_day(attractions, num_days)
+        constraints = day_constraints or {}
+
+        # Cluster attractions into daily groups
+        if constraints:
+            daily_groups = self._cluster_with_constraints(
+                attractions, num_days, constraints
+            )
+        else:
+            daily_groups = self._cluster_by_day(attractions, num_days)
 
         # Optimize each day's route
         days: list[DayPlan] = []
@@ -141,6 +151,68 @@ class LogisticsAgent:
 
         # Reassign for balance
         groups = self._balance_groups(groups, centroids)
+
+        return groups
+
+    def _cluster_with_constraints(
+        self,
+        attractions: list[Attraction],
+        num_days: int,
+        constraints: dict[int, list[str]],
+    ) -> list[list[Attraction]]:
+        """Cluster attractions respecting per-day category constraints.
+
+        For constrained days, only attractions matching allowed categories are assigned.
+        Remaining attractions fill unconstrained days using geographic clustering.
+
+        Args:
+            attractions: List of all attractions.
+            num_days: Number of days.
+            constraints: {day_number: [allowed_categories]}
+
+        Returns:
+            List of lists, one per day.
+        """
+        groups: list[list[Attraction]] = [[] for _ in range(num_days)]
+
+        # Separate constrained and unconstrained attractions
+        constrained_ids: set[str] = set()
+        for day_num, allowed_cats in constraints.items():
+            if day_num < 1 or day_num > num_days:
+                continue
+            day_idx = day_num - 1
+            for attr in attractions:
+                if any(cat in allowed_cats for cat in attr.categories):
+                    groups[day_idx].append(attr)
+                    constrained_ids.add(attr.place_id)
+
+        # Remaining attractions go to unconstrained days via geographic clustering
+        remaining = [a for a in attractions if a.place_id not in constrained_ids]
+        unconstrained_days = [
+            i for i in range(num_days) if (i + 1) not in constraints
+        ]
+
+        if remaining and unconstrained_days:
+            # Cluster remaining by geography into unconstrained days
+            step = max(1, len(remaining) // len(unconstrained_days))
+            centroids: list[tuple[float, float]] = []
+            for idx in unconstrained_days:
+                centroid_idx = min(
+                    unconstrained_days.index(idx) * step, len(remaining) - 1
+                )
+                centroids.append(
+                    (remaining[centroid_idx].lat, remaining[centroid_idx].lng)
+                )
+
+            for attr in remaining:
+                best_day_pos = 0
+                best_dist = float("inf")
+                for pos, (clat, clng) in enumerate(centroids):
+                    dist = _haversine(attr.lat, attr.lng, clat, clng)
+                    if dist < best_dist:
+                        best_dist = dist
+                        best_day_pos = pos
+                groups[unconstrained_days[best_day_pos]].append(attr)
 
         return groups
 

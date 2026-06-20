@@ -126,6 +126,12 @@ def _handle_summarize(chat_service: ChatService) -> None:
             )
             st.session_state["chat_context"] = _format_chat_context(chat_service)
 
+            # Store day constraints (convert string keys to int)
+            raw_constraints = summary.get("day_constraints", {})
+            st.session_state["day_constraints"] = {
+                int(k): v for k, v in raw_constraints.items()
+            } if raw_constraints else {}
+
             st.success(
                 f"Podsumowanie gotowe! 🎉\n\n"
                 f"**Miasto:** {city}\n"

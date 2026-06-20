@@ -111,6 +111,7 @@ def create_initial_state(
     meal_preferences: dict[str, int] | None = None,
     chat_context: str = "",
     country: str = "",
+    day_constraints: dict[int, list[str]] | None = None,
 ) -> TravelState:
     """Create the initial state for the travel planning graph.
 
@@ -141,6 +142,7 @@ def create_initial_state(
         validation_result=None,
         place_details_cache={},
         meal_preferences=meal_preferences or {},
+        day_constraints=day_constraints or {},
         chat_context=chat_context,
         retry_count=0,
         errors=[],
