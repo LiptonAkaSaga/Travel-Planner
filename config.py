@@ -15,7 +15,7 @@ OPENAI_MODEL: str = "mimo-v2.5-pro"
 
 # LLM settings — Gemini
 GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
-GEMINI_MODEL: str = "gemini-2.0-flash"
+GEMINI_MODEL: str = "gemini-3.5-flash"
 
 # Available models for user selection
 AVAILABLE_MODELS: dict[str, dict[str, str]] = {
@@ -25,7 +25,7 @@ AVAILABLE_MODELS: dict[str, dict[str, str]] = {
         "model": OPENAI_MODEL,
     },
     "gemini": {
-        "label": "Gemini 2.0 Flash",
+        "label": "Gemini 3.5 Flash",
         "provider": "google",
         "model": GEMINI_MODEL,
     },
